@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -8,10 +8,14 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Logger
+namespace cptf
 {
-    class Logger
+    public class Logger
     {
+        /// <summary>
+        /// This is a semaphore that will be used to synchronize logging calls
+        /// </summary>
+        protected readonly object logObj = new object();
         /// <summary>
         /// A default constructor that will create a log file using the assembly name
         /// and folder location for the log file name and location. Each log filename will
@@ -19,52 +23,38 @@ namespace Logger
         /// a string representing the date and time when the application started.
         /// </summary>
         public Logger()
-        {
-            Logfile logfile = new Logfile();
-            // The following stream allows sharing of the log file with an external process
-            Stream myFile = new FileStream(logfile.Path, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite);
-            /* Create a new text writer using the output stream, and add it to
-             * the trace listeners. */
-            TextWriterTraceListener myTextListener = new
-               TextWriterTraceListener(myFile);
-            Trace.Listeners.Add(myTextListener);
-            Trace.AutoFlush = true;
-        }
+        {}
 
         /// <summary>
-        /// Writes and error message entry
+        /// Writes a message and optional exception as an error to the log file 
         /// </summary>
-        /// <param name="message">The error message.</param>
+        /// <param name="message"></param>
+        /// <param name="ex"></param>
         /// <param name="module"></param>
-        public void Error(string message, [CallerMemberName]string module = "")
+        public void Error(string message, Exception ex = null, string module = "")
         {
+            if (ex != null)
+            {
+                WriteEntry(ex.Message, "[ERROR]", module);
+                WriteEntry(ex.StackTrace, "[ERROR]", module);            
+            }
             WriteEntry(message, "[ERROR]", module);
         }
         /// <summary>
-        /// Writes an Error log entry for an exception
-        /// </summary>
-        /// <param name="ex">The exception object</param>
-        /// <param name="module"></param>
-        public void Error(Exception ex, [CallerMemberName]string module = "")
-        {
-            WriteEntry(ex.Message, "[ERROR]", module);
-            WriteEntry(ex.ToString(), "[ERROR]", module);
-        }
-        /// <summary>
-        /// Writes a warning message entry
+        /// Writes a given message as a warning to the log file
         /// </summary>
         /// <param name="message"></param>
         /// <param name="module"></param>
-        public void Warning(string message, [CallerMemberName]string module = "")
+        public void Warning(string message,string module = "")
         {
             WriteEntry(message, "[WARNING]", module);
         }
         /// <summary>
-        /// Writes an info message
+        /// Writes a given message as an information to the log file
         /// </summary>
         /// <param name="message"></param>
         /// <param name="module"></param>
-        public void Info(string message, [CallerMemberName]string module = "")
+        public void Info(string message, string module = "")
         {
             WriteEntry(message, "[INFO]", module);
         }
@@ -76,17 +66,27 @@ namespace Logger
         /// <param name="module"></param>
         private void WriteEntry(string message, string type, string module)
         {
-            // Stream myFile = File.OpenWrite(logfile);
+            Logfile logfile = new Logfile();
 
-            Trace.WriteLine(
-                    string.Format("{0},{1},{2},{3}",
+            lock (logObj)
+            {
+
+                using (StreamWriter streamWriter = new StreamWriter(logfile.Path,true))
+                {
+                    streamWriter.WriteLine(string.Format("{0},{1},{2},{3}",
                                   DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
                                   type,
                                   module,
                                   message));
-            Trace.Flush();
+                    streamWriter.Close();
+                }
+            }
+
         }
-}
+    }
+    /// <summary>
+    /// Defines the log file
+    /// </summary>
     public class Logfile
     {
         public string Path { get; private set; }
@@ -100,7 +100,56 @@ namespace Logger
             Filename = fvi.FileDescription;
             string version = fvi.FileVersion;
             string fileDir = System.IO.Path.GetTempPath();
-            string Path = String.Format("{0}_{1}.log", System.IO.Path.Combine(fileDir, Filename), DateTime.Now.ToString("yyyyMMddHHmmss"));
+            //Path = String.Format("{0}_{1}.log", System.IO.Path.Combine(fileDir, Filename), DateTime.Now.ToString("yyyyMMddHHmmss"));
+            Path = String.Format("{0}.log", System.IO.Path.Combine(fileDir, Filename));
         }
     }
+    /// <summary>
+    /// A class that provides a static method that can be used to write to the log file 
+    /// </summary>
+    public static class LogHelper
+    {
+        /// <summary>
+        /// Logger class
+        /// </summary>
+        private static Logger logger = null;
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="logLevel"></param>
+        /// <param name="logMessage"></param>
+        /// <param name="ex"></param>
+        /// <param name="module"></param>
+        public static void Log(LogLevel logLevel, string logMessage, Exception ex = null, [CallerMemberName]string module = "")
+        {
+            switch (logLevel)
+            {
+                case LogLevel.ERROR:
+                    logger = new Logger();
+                    logger.Error(logMessage, ex, module);
+                    break;
+                case LogLevel.INFO:
+                    logger = new Logger();
+                    logger.Info(logMessage, module);
+                    break;
+                case LogLevel.WARNING:
+                    logger = new Logger();
+                    logger.Warning(logMessage, module);
+                    break;
+                default:
+                    return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Defines log levels
+    /// </summary>
+    public enum LogLevel
+    {
+        INFO,
+        ERROR,
+        WARNING
+    }
+    
 }
