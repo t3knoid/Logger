@@ -87,22 +87,29 @@ namespace cptf
     /// <summary>
     /// Defines the log file
     /// </summary>
-    public class Logfile
+    public static class Logfile
     {
-        public string Path { get; private set; }
-        public string Filename { get; private set; }
-
-        public Logfile()
+        public static string Path
         {
-            Assembly assembly = Assembly.GetExecutingAssembly();
-            FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(assembly.Location);
-
-            Filename = fvi.FileDescription;
-            string version = fvi.FileVersion;
-            string fileDir = System.IO.Path.GetTempPath();
-            //Path = String.Format("{0}_{1}.log", System.IO.Path.Combine(fileDir, Filename), DateTime.Now.ToString("yyyyMMddHHmmss"));
-            Path = String.Format("{0}.log", System.IO.Path.Combine(fileDir, Filename));
+            get
+            {
+                return _path;
+            }
+            private set
+            {
+                _path = value;
+            }
         }
+        private static string _path;
+
+        static Logfile()
+        {
+            var process = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+            var Filename = System.IO.Path.GetFileName(process);
+            string fileDir = System.IO.Path.GetTempPath();
+            _path = String.Format("{0}.log", System.IO.Path.Combine(fileDir, Filename));
+        }
+
     }
     /// <summary>
     /// A class that provides a static method that can be used to write to the log file 
